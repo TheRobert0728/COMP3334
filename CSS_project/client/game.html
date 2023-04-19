@@ -1,0 +1,110 @@
+<div id="game-div">
+    <canvas id="ctx" width="952" height="313" style="border:1px solid #000000;"></canvas>
+    <div id="chat-text" style="width:932px;height: 313px;overflow-y: scroll;">
+        <div>Welcome to e classroom!</div>
+    </div>
+    <form id="chat-form">
+        <input id="chat-input" type="text" style="width:952px"></input>
+    </form>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script>
+    const getCookieValue = (name) => (
+        document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)')?.pop() || ''
+    )
+    var socket = io();
+    socket.emit('connectToGame', getCookieValue('id'));
+
+    var game_div = document.getElementById("game-div");
+
+    //attribute for the game
+    var Img = {};
+    var direction = 'right';
+    Img.player = new Image();
+    Img.player_mir = new Image();
+    Img.player.src = '/client/img/student1.PNG';
+    Img.player_mir.src = '/client/img/student1_mirror.png';
+    Img.classroom = new Image();
+    Img.classroom.src = '/client/img/classroom.png';
+
+    var chatText = document.getElementById('chat-text');
+    var chatInput = document.getElementById('chat-input');
+    var chatForm = document.getElementById('chat-form');
+    var ctx = document.getElementById("ctx").getContext("2d");
+    var theNonce = "";
+    ctx.font = '30px Arial';
+
+    //chat function
+    socket.on('addToChat', function(data){
+        var deMsg = CryptoJS.AES.decrypt(data, theNonce).toString(CryptoJS.enc.Utf8);
+        chatText.innerHTML += '<div>' + deMsg + '</div>'
+    });
+
+    socket.on('giveNonce', function(data) {
+        theNonce = data;
+    });
+
+    chatForm.onsubmit = function(e) {
+        e.preventDefault();
+        var enMsg = CryptoJS.AES.encrypt(chatInput.value, theNonce).toString();
+        socket.emit('addComment', enMsg);
+        chatInput.value = '';
+    }
+
+   //draw player
+    socket.on('newPositions', function(data) {
+        ctx.clearRect(0,0,952,313);
+        ctx.drawImage(Img.classroom, 0, 0);
+        var width = Img.player.width*2;
+        var height = Img.player.height*2;
+
+        for(var i = 0;i < data.length; i++){
+            //ctx.fillText(data[i].id, data[i].x, data[i].y);
+            if(data[i].direction === 'right')
+                ctx.drawImage(Img.player, 0, 0, Img.player.width, Img.player.height, data[i].x-width/2, data[i].y-height/2, width, height);
+            else
+                ctx.drawImage(Img.player_mir, 0, 0, Img.player.width, Img.player.height, data[i].x-width/2, data[i].y-height/2, width, height);
+        }
+        //show a player hand up or down
+    }); 
+
+    //inreact with the game
+    document.onkeydown = function(event) {
+        if (event.keyCode === 87 || event.keyCode === 38){
+            socket.emit('keyPress', {inputIs:'up', state:true});
+        }
+        else if (event.keyCode === 83 || event.keyCode === 40){
+            socket.emit('keyPress', {inputIs:'down', state:true});
+        }
+        else if (event.keyCode === 65 || event.keyCode === 37){
+            socket.emit('keyPress', {inputIs:'left', state:true});
+        }
+        else if (event.keyCode === 68 || event.keyCode === 39){
+            socket.emit('keyPress', {inputIs:'right', state:true});
+        }
+    }
+
+    document.onkeyup = function(event) {
+        if (event.keyCode === 87 || event.keyCode === 38){
+            socket.emit('keyPress', {inputIs:'up', state:false});
+        }
+        else if (event.keyCode === 83 || event.keyCode === 40){
+            socket.emit('keyPress', {inputIs:'down', state:false});
+        }
+        else if (event.keyCode === 65 || event.keyCode === 37){
+            socket.emit('keyPress', {inputIs:'left', state:false});
+        }
+        else if (event.keyCode === 68 || event.keyCode === 39){
+            socket.emit('keyPress', {inputIs:'right', state:false});
+        }
+    }
+
+    document.onmousedown = function(event) {
+        socket.emit('keyPress', {input:'handUp', state:true});
+    }
+
+    document.onmouseup = function(event) {
+        socket.emit('keyPress', {input:'handUp', state:false});
+    }
+</script>
